@@ -170,8 +170,20 @@ importWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'I
 importWorker.on('completed', (job) => logger.info({ jobId: job.id }, 'Import job completed'));
 discoveryWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Discovery job failed'));
 
+// ─── Health endpoint (required for Render web service) ────────
+import { createServer } from 'http';
+const WORKER_PORT = Number(process.env.PORT) || 4001;
+const healthServer = createServer((_req, res) => {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ status: 'ok', service: 'kyzen-worker', timestamp: new Date().toISOString() }));
+});
+healthServer.listen(WORKER_PORT, () => {
+  logger.info(`Worker health server on port ${WORKER_PORT}`);
+});
+
 process.on('SIGTERM', async () => {
   logger.info('Shutting down workers...');
+  healthServer.close();
   await importWorker.close();
   await discoveryWorker.close();
   await prisma.$disconnect();
@@ -179,3 +191,4 @@ process.on('SIGTERM', async () => {
 });
 
 logger.info('🔄 Kyzen Worker started — Import and Discovery queues active');
+

@@ -15,9 +15,7 @@ services:
       npx prisma generate --schema=./prisma/schema.prisma &&
       npm run build --workspace=packages/shared &&
       npm run build --workspace=apps/api
-    startCommand: |
-      npx prisma migrate deploy --schema=./prisma/schema.prisma &&
-      node apps/api/dist/index.js
+    startCommand: "npx prisma migrate deploy --schema=./prisma/schema.prisma && node apps/api/dist/index.js"
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -58,8 +56,8 @@ services:
       - key: APOLLO_API_KEY
         sync: false
 
-  # ─── BullMQ Background Worker ─────────────────────────────────
-  - type: worker
+  # ─── BullMQ Background Worker (runs as web service on free tier) ──
+  - type: web
     name: kyzen-worker
     runtime: node
     region: singapore
@@ -70,6 +68,7 @@ services:
       npm run build --workspace=packages/shared &&
       npm run build --workspace=apps/worker
     startCommand: node apps/worker/dist/index.js
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
