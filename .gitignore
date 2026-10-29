@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+
+# Environment files - NEVER COMMIT
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Test coverage
+coverage/
+.nyc_output
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Prisma generated
+prisma/generated/
+
+# Uploads (runtime)
+uploads/
+!uploads/.gitkeep
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Playwright reports
+playwright-report/
+test-results/

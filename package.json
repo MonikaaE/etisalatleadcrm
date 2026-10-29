@@ -1,0 +1,38 @@
+{
+  "name": "kyzen-lead-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kyzen B2B Lead Intelligence, CRM & Outreach Automation Platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\" \"npm run dev:worker\"",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:worker": "npm run dev --workspace=apps/worker",
+    "build": "npm run build --workspaces",
+    "build:web": "npm run build --workspace=apps/web",
+    "build:api": "npm run build --workspace=apps/api",
+    "build:worker": "npm run build --workspace=apps/worker",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "playwright test",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:seed": "npx ts-node prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset --force",
+    "db:generate": "prisma generate",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "setup": "npm install && npm run db:generate && npm run db:migrate"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.2",
+    "@playwright/test": "^1.49.0"
+  }
+}

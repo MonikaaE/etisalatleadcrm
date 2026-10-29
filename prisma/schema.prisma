@@ -1,0 +1,1061 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  SALES_MANAGER
+  SALES_REP
+  ANALYST
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum LeadStatus {
+  NEW
+  NEEDS_REVIEW
+  QUALIFIED
+  CONTACTED
+  ENGAGED
+  MEETING_BOOKED
+  PROPOSAL_SENT
+  WON
+  LOST
+  DISQUALIFIED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum Industry {
+  CONSTRUCTION
+  REAL_ESTATE
+  LOGISTICS
+  HEALTHCARE
+  EDUCATION
+  RETAIL
+  HOSPITALITY
+  MANUFACTURING
+  PROFESSIONAL_SERVICES
+  IT_TECHNOLOGY
+  TRADING
+  FINANCE
+  MEDIA
+  TELECOM
+  ENERGY
+  GOVERNMENT
+  OTHER
+}
+
+enum Emirate {
+  ABU_DHABI
+  DUBAI
+  SHARJAH
+  AJMAN
+  UMM_AL_QUWAIN
+  RAS_AL_KHAIMAH
+  FUJAIRAH
+}
+
+enum CampaignStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SCHEDULED
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum CampaignType {
+  EMAIL
+  WHATSAPP
+}
+
+enum MessageStatus {
+  PENDING
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  BOUNCED
+  COMPLAINED
+  UNSUBSCRIBED
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+enum ImportRecordType {
+  COMPANY
+  CONTACT
+}
+
+enum EnrichmentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  NEEDS_REVIEW
+  REJECTED
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskType {
+  CALL
+  EMAIL
+  MEETING
+  FOLLOW_UP
+  DEMO
+  PROPOSAL
+  OTHER
+}
+
+enum ActivityType {
+  LEAD_CREATED
+  LEAD_UPDATED
+  STATUS_CHANGED
+  NOTE_ADDED
+  CALL_LOGGED
+  EMAIL_SENT
+  EMAIL_RECEIVED
+  WHATSAPP_SENT
+  WHATSAPP_RECEIVED
+  TASK_CREATED
+  TASK_COMPLETED
+  IMPORT_COMPLETED
+  ENRICHMENT_COMPLETED
+  CAMPAIGN_SENT
+  STAGE_CHANGED
+  ASSIGNED
+  TAG_ADDED
+  TAG_REMOVED
+  OPT_OUT
+  OPT_IN
+  FILE_UPLOADED
+}
+
+enum ConnectorStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+  RATE_LIMITED
+  UNCONFIGURED
+}
+
+enum ConsentChannel {
+  EMAIL
+  WHATSAPP
+  SMS
+  PHONE
+}
+
+enum SuppressionReason {
+  UNSUBSCRIBED
+  BOUNCED
+  COMPLAINED
+  DO_NOT_CONTACT
+  OPT_OUT_WHATSAPP
+  LEGAL_REQUEST
+  DUPLICATE
+}
+
+enum WhatsAppTemplateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DISABLED
+}
+
+// ─────────────────────────────────────────────────────────────
+// USERS & AUTH
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  // existing fields ...
+  // Add back-relation to mail settings
+  mailSetting UserMailSetting? @relation(name: "UserMailSettingUser")
+  id                String     @id @default(cuid())
+  email             String     @unique
+  passwordHash      String
+  firstName         String
+  lastName          String
+  role              UserRole   @default(SALES_REP)
+  status            UserStatus @default(ACTIVE)
+  avatarUrl         String?
+  phone             String?
+  lastLoginAt       DateTime?
+  passwordChangedAt DateTime?
+  loginAttempts     Int        @default(0)
+  lockedUntil       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  // Relations
+  refreshTokens       RefreshToken[]
+  assignedCompanies   Company[]       @relation("AssignedRep")
+  assignedContacts    Contact[]       @relation("AssignedContact")
+  createdCompanies    Company[]       @relation("CreatedByUser")
+  createdContacts     Contact[]       @relation("CreatedByContact")
+  tasks               Task[]          @relation("TaskAssignee")
+  createdTasks        Task[]          @relation("TaskCreator")
+  activities          Activity[]
+  auditLogs           AuditLog[]
+  campaignsCreated    Campaign[]      @relation("CampaignCreator")
+  campaignsApproved   Campaign[]      @relation("CampaignApprover")
+  notes               Note[]
+  conversations       Conversation[]  @relation("ConversationAssignee")
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+  ipAddress String?
+  userAgent String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────
+// COMPANIES
+// ─────────────────────────────────────────────────────────────
+
+model Company {
+  id               String    @id @default(cuid())
+  name             String
+  tradingName      String?
+  industry         Industry  @default(OTHER)
+  businessCategory String?
+  description      String?
+  website          String?
+  domain           String?
+  email            String?
+  phone            String?
+  phoneNormalized  String?
+  address          String?
+  area             String?
+  emirate          Emirate?
+  country          String    @default("UAE")
+
+  // Size
+  employeeCountMin Int?
+  employeeCountMax Int?
+  employeeSizeBand String?
+
+  // Lead management
+  leadStatus  LeadStatus @default(NEW)
+  priority    Priority   @default(MEDIUM)
+  score       Int        @default(0)
+  scoreReason Json?
+
+  // Assignment
+  assignedToId String?
+  assignedTo   User?   @relation("AssignedRep", fields: [assignedToId], references: [id])
+
+  // Provenance
+  sourceId         String?
+  sourceUrl        String?
+  retrievedAt      DateTime?
+  lastVerifiedAt   DateTime?
+  dataConfidence   Float     @default(0.0)
+
+  // Opportunity signals
+  potentialSimQty     Int?
+  existingProvider    String?
+  multiSiteRequired   Boolean @default(false)
+  roamingRequired     Boolean @default(false)
+  purchaseTimeline    String?
+  estimatedValue      Float?
+
+  // Follow-up
+  followUpDate DateTime?
+  lostReason   String?
+
+  // Status flags
+  isDeleted      Boolean   @default(false)
+  deletedAt      DateTime?
+  markedForReview Boolean  @default(false)
+
+  createdById String?
+  createdBy   User?   @relation("CreatedByUser", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  contacts            Contact[]
+  tags                CompanyTag[]
+  notes               Note[]
+  tasks               Task[]
+  activities          Activity[]
+  auditLogs           AuditLog[]
+  campaignAudiences   CampaignAudience[]
+  enrichmentJobs      EnrichmentJob[]
+  sourceRecords       SourceRecord[]
+
+  @@unique([domain, isDeleted])
+  @@index([leadStatus])
+  @@index([industry])
+  @@index([emirate])
+  @@index([assignedToId])
+  @@index([score])
+  @@index([isDeleted])
+  @@index([phoneNormalized])
+  @@map("companies")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONTACTS
+// ─────────────────────────────────────────────────────────────
+
+model Contact {
+  id             String  @id @default(cuid())
+  firstName      String
+  lastName       String
+  fullName       String
+  title          String?
+  department     String?
+  email          String?
+  emailVerified  Boolean @default(false)
+  phone          String?
+  phoneNormalized String?
+  profileUrl     String?
+  profileUrlSource String?
+
+  // Company link
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  // Provenance
+  sourceId       String?
+  sourceUrl      String?
+  retrievedAt    DateTime?
+  lastVerifiedAt DateTime?
+  dataConfidence Float    @default(0.0)
+
+  // Permission / opt-in status
+  emailOptIn         Boolean   @default(false)
+  emailOptInAt       DateTime?
+  emailOptInSource   String?
+  whatsappOptIn      Boolean   @default(false)
+  whatsappOptInAt    DateTime?
+  whatsappOptInSource String?
+  emailUnsubscribed  Boolean   @default(false)
+  emailUnsubscribedAt DateTime?
+  whatsappOptedOut   Boolean   @default(false)
+  whatsappOptedOutAt DateTime?
+
+  // Assignment
+  assignedToId String?
+  assignedTo   User?   @relation("AssignedContact", fields: [assignedToId], references: [id])
+
+  // Status
+  isDeleted      Boolean   @default(false)
+  deletedAt      DateTime?
+  markedForReview Boolean  @default(false)
+
+  createdById String?
+  createdBy   User?   @relation("CreatedByContact", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tags                  ContactTag[]
+  notes                 Note[]
+  tasks                 Task[]
+  activities            Activity[]
+  auditLogs             AuditLog[]
+  channelPermissions    ContactChannelPermission[]
+  suppressionEntries    SuppressionEntry[]
+  campaignMessages      CampaignMessage[]
+  campaignAudiences     CampaignAudience[]
+  conversationContacts  ConversationContact[]
+
+  @@unique([email, isDeleted])
+  @@index([companyId])
+  @@index([assignedToId])
+  @@index([emailOptIn])
+  @@index([whatsappOptIn])
+  @@index([isDeleted])
+  @@index([phoneNormalized])
+  @@map("contacts")
+}
+
+// ─────────────────────────────────────────────────────────────
+// TAGS
+// ─────────────────────────────────────────────────────────────
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String   @default("#6366f1")
+  createdAt DateTime @default(now())
+
+  companies CompanyTag[]
+  contacts  ContactTag[]
+
+  @@map("tags")
+}
+
+model CompanyTag {
+  companyId String
+  tagId     String
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, tagId])
+  @@map("company_tags")
+}
+
+model ContactTag {
+  contactId String
+  tagId     String
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+  @@map("contact_tags")
+}
+
+// ─────────────────────────────────────────────────────────────
+// NOTES
+// ─────────────────────────────────────────────────────────────
+
+model Note {
+  id        String   @id @default(cuid())
+  content   String
+  companyId String?
+  contactId String?
+  authorId  String
+
+  company   Company? @relation(fields: [companyId], references: [id])
+  contact   Contact? @relation(fields: [contactId], references: [id])
+  author    User     @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([contactId])
+  @@map("notes")
+}
+
+// ─────────────────────────────────────────────────────────────
+// TASKS
+// ─────────────────────────────────────────────────────────────
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  type        TaskType   @default(FOLLOW_UP)
+  status      TaskStatus @default(OPEN)
+  priority    Priority   @default(MEDIUM)
+  dueDate     DateTime?
+  completedAt DateTime?
+
+  companyId  String?
+  contactId  String?
+  assigneeId String?
+  creatorId  String?
+
+  company  Company? @relation(fields: [companyId], references: [id])
+  contact  Contact? @relation(fields: [contactId], references: [id])
+  assignee User?    @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creator  User?    @relation("TaskCreator", fields: [creatorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assigneeId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ACTIVITY TIMELINE
+// ─────────────────────────────────────────────────────────────
+
+model Activity {
+  id          String       @id @default(cuid())
+  type        ActivityType
+  description String
+  metadata    Json?
+  companyId   String?
+  contactId   String?
+  userId      String?
+
+  company Company? @relation(fields: [companyId], references: [id])
+  contact Contact? @relation(fields: [contactId], references: [id])
+  user    User?    @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([contactId])
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("activities")
+}
+
+// ─────────────────────────────────────────────────────────────
+// AUDIT LOGS
+// ─────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  entityType String
+  entityId   String
+  userId     String?
+  ipAddress  String?
+  userAgent  String?
+  before     Json?
+  after      Json?
+  metadata   Json?
+  companyId  String?
+  contactId  String?
+
+  user    User?    @relation(fields: [userId], references: [id])
+  company Company? @relation(fields: [companyId], references: [id])
+  contact Contact? @relation(fields: [contactId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// SOURCE CONNECTORS
+// ─────────────────────────────────────────────────────────────
+
+model LeadSource {
+  id          String          @id @default(cuid())
+  key         String          @unique
+  name        String
+  description String?
+  type        String
+  status      ConnectorStatus @default(UNCONFIGURED)
+  lastChecked DateTime?
+  lastSuccess DateTime?
+  errorMessage String?
+  config      Json?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  discoveryJobs DiscoveryJob[]
+  sourceRecords SourceRecord[]
+
+  @@map("lead_sources")
+}
+
+model DiscoveryJob {
+  id             String     @id @default(cuid())
+  sourceId       String
+  status         ImportStatus @default(PENDING)
+  filters        Json?
+  processedCount Int        @default(0)
+  rejectedCount  Int        @default(0)
+  errorCount     Int        @default(0)
+  totalCount     Int?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  errorMessage   String?
+  jobQueueId     String?
+  createdById    String?
+
+  source LeadSource @relation(fields: [sourceId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sourceId])
+  @@index([status])
+  @@map("discovery_jobs")
+}
+
+model SourceRecord {
+  id         String   @id @default(cuid())
+  sourceId   String
+  externalId String?
+  rawData    Json
+  normalized Json?
+  status     String   @default("pending")
+  companyId  String?
+  sourceUrl  String?
+  retrievedAt DateTime @default(now())
+
+  source  LeadSource @relation(fields: [sourceId], references: [id])
+  company Company?   @relation(fields: [companyId], references: [id])
+
+  @@index([sourceId])
+  @@index([companyId])
+  @@index([status])
+  @@map("source_records")
+}
+
+// ─────────────────────────────────────────────────────────────
+// IMPORTS
+// ─────────────────────────────────────────────────────────────
+
+model ImportJob {
+  id              String           @id @default(cuid())
+  filename        String
+  originalName    String
+  recordType      ImportRecordType @default(COMPANY)
+  status          ImportStatus     @default(PENDING)
+  totalRows       Int              @default(0)
+  processedRows   Int              @default(0)
+  importedRows    Int              @default(0)
+  skippedRows     Int              @default(0)
+  errorRows       Int              @default(0)
+  columnMapping   Json?
+  options         Json?
+  jobQueueId      String?
+  filePath        String?
+  errorReportPath String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdById     String?
+
+  rowErrors ImportRowError[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdById])
+  @@map("import_jobs")
+}
+
+model ImportRowError {
+  id        String @id @default(cuid())
+  importJobId String
+  rowNumber  Int
+  rowData    Json
+  errors     Json
+  status     String @default("error")
+
+  importJob ImportJob @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([importJobId])
+  @@map("import_row_errors")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENRICHMENT
+// ─────────────────────────────────────────────────────────────
+
+model EnrichmentJob {
+  id           String           @id @default(cuid())
+  companyId    String?
+  contactId    String?
+  source       String
+  status       EnrichmentStatus @default(PENDING)
+  inputData    Json?
+  resultData   Json?
+  confidence   Float?
+  notes        String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  jobQueueId   String?
+
+  company Company? @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@map("enrichment_jobs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONSENT & COMPLIANCE
+// ─────────────────────────────────────────────────────────────
+
+model ContactChannelPermission {
+  id              String         @id @default(cuid())
+  contactId       String
+  channel         ConsentChannel
+  hasPermission   Boolean        @default(false)
+  grantedAt       DateTime?
+  grantedSource   String?
+  consentWording  String?
+  consentVersion  String?
+  revokedAt       DateTime?
+  revokedReason   String?
+  purposeCode     String?
+  lawfulBasis     String?
+  notes           String?
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([contactId, channel])
+  @@index([contactId])
+  @@map("contact_channel_permissions")
+}
+
+model SuppressionEntry {
+  id        String            @id @default(cuid())
+  email     String?
+  phone     String?
+  companyId String?
+  contactId String?
+  channel   ConsentChannel?
+  reason    SuppressionReason
+  notes     String?
+  addedById String?
+  source    String?
+
+  contact Contact? @relation(fields: [contactId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([phone])
+  @@index([contactId])
+  @@index([reason])
+  @@map("suppression_entries")
+}
+
+// ─────────────────────────────────────────────────────────────
+// EMAIL TEMPLATES
+// ─────────────────────────────────────────────────────────────
+
+model EmailTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  subject     String
+  htmlBody    String
+  textBody    String?
+  variables   Json?
+  isActive    Boolean  @default(true)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  campaigns Campaign[]
+
+  @@map("email_templates")
+}
+
+// ─────────────────────────────────────────────────────────────
+// WHATSAPP TEMPLATES
+// ─────────────────────────────────────────────────────────────
+
+model WhatsAppTemplate {
+  id              String                 @id @default(cuid())
+  name            String
+  language        String                 @default("en")
+  category        String
+  components      Json
+  status          WhatsAppTemplateStatus @default(PENDING)
+  externalId      String?
+  previewText     String?
+  variables       Json?
+  rejectedReason  String?
+  createdById     String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  campaigns Campaign[]
+
+  @@map("whatsapp_templates")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CAMPAIGNS
+// ─────────────────────────────────────────────────────────────
+
+model Campaign {
+  id                String         @id @default(cuid())
+  name              String
+  type              CampaignType
+  status            CampaignStatus @default(DRAFT)
+  subject           String?
+  senderName        String?
+  senderEmail       String?
+  emailTemplateId   String?
+  whatsappTemplateId String?
+  variables         Json?
+  filters           Json?
+  scheduledAt       DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  pausedAt          DateTime?
+  cancelledAt       DateTime?
+
+  // Stats (denormalized for performance)
+  totalRecipients  Int @default(0)
+  sent             Int @default(0)
+  delivered        Int @default(0)
+  opened           Int @default(0)
+  clicked          Int @default(0)
+  replied          Int @default(0)
+  bounced          Int @default(0)
+  complained       Int @default(0)
+  unsubscribed     Int @default(0)
+  failed           Int @default(0)
+
+  createdById  String?
+  approvedById String?
+  approvedAt   DateTime?
+  notes        String?
+
+  emailTemplate    EmailTemplate?    @relation(fields: [emailTemplateId], references: [id])
+  whatsappTemplate WhatsAppTemplate? @relation(fields: [whatsappTemplateId], references: [id])
+  createdBy        User?             @relation("CampaignCreator", fields: [createdById], references: [id])
+  approvedBy       User?             @relation("CampaignApprover", fields: [approvedById], references: [id])
+
+  messages  CampaignMessage[]
+  audiences CampaignAudience[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@index([scheduledAt])
+  @@map("campaigns")
+}
+
+model CampaignAudience {
+  id         String  @id @default(cuid())
+  campaignId String
+  companyId  String?
+  contactId  String?
+  eligible   Boolean @default(true)
+  reason     String?
+
+  campaign Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  company  Company?  @relation(fields: [companyId], references: [id])
+  contact  Contact?  @relation(fields: [contactId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([campaignId])
+  @@index([companyId])
+  @@index([contactId])
+  @@map("campaign_audiences")
+}
+
+model CampaignMessage {
+  id         String        @id @default(cuid())
+  campaignId String
+  contactId  String?
+  channel    CampaignType
+  status     MessageStatus @default(PENDING)
+  recipient  String
+  subject    String?
+  body       String?
+  variables  Json?
+
+  // Provider tracking
+  providerMessageId String?
+  providerResponse  Json?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  openedAt          DateTime?
+  clickedAt         DateTime?
+  repliedAt         DateTime?
+  failedAt          DateTime?
+  failureReason     String?
+  retryCount        Int       @default(0)
+
+  campaign Campaign  @relation(fields: [campaignId], references: [id])
+  contact  Contact?  @relation(fields: [contactId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([campaignId])
+  @@index([contactId])
+  @@index([status])
+  @@index([providerMessageId])
+  @@map("campaign_messages")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONVERSATIONS (WhatsApp Inbox)
+// ─────────────────────────────────────────────────────────────
+
+model Conversation {
+  id           String   @id @default(cuid())
+  channel      String   @default("WHATSAPP")
+  phoneNumber  String
+  isOpen       Boolean  @default(true)
+  assignedToId String?
+  lastMessageAt DateTime?
+  metadata     Json?
+
+  assignedTo User?                 @relation("ConversationAssignee", fields: [assignedToId], references: [id])
+  contacts   ConversationContact[]
+  messages   ConversationMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phoneNumber])
+  @@index([assignedToId])
+  @@index([isOpen])
+  @@map("conversations")
+}
+
+model ConversationContact {
+  conversationId String
+  contactId      String
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  contact      Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, contactId])
+  @@map("conversation_contacts")
+}
+
+model ConversationMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  direction      String
+  type           String   @default("text")
+  body           String?
+  mediaUrl       String?
+  mediaType      String?
+  status         MessageStatus @default(PENDING)
+  providerMsgId  String?
+  isInternal     Boolean  @default(false)
+  sentAt         DateTime?
+  deliveredAt    DateTime?
+  readAt         DateTime?
+  metadata       Json?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([providerMsgId])
+  @@map("conversation_messages")
+}
+
+// ─────────────────────────────────────────────────────────────
+// WEBHOOKS
+// ─────────────────────────────────────────────────────────────
+
+model WebhookEvent {
+  id           String   @id @default(cuid())
+  provider     String
+  eventType    String
+  payload      Json
+  signature    String?
+  processed    Boolean  @default(false)
+  processedAt  DateTime?
+  errorMessage String?
+  idempotencyKey String? @unique
+
+  createdAt DateTime @default(now())
+
+  @@index([provider])
+  @@index([processed])
+  @@index([idempotencyKey])
+  @@map("webhook_events")
+}
+
+// ─────────────────────────────────────────────────────────────
+// INTEGRATIONS
+// ─────────────────────────────────────────────────────────────
+
+model IntegrationConfig {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  name         String
+  isEnabled    Boolean  @default(false)
+  isConfigured Boolean  @default(false)
+  lastChecked  DateTime?
+  lastSuccess  DateTime?
+  status       String   @default("unconfigured")
+  errorMessage String?
+  publicConfig Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("integration_configs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// USER MAIL SETTINGS
+// ─────────────────────────────────────────────────────────────
+
+model UserMailSetting {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  senderEmail  String
+  smtpHost     String
+  smtpPort     Int
+  smtpUser     String
+  smtpPassword String   // encrypted at rest
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_mail_settings")
+}
