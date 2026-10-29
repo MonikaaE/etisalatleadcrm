@@ -87,7 +87,6 @@ services:
   - type: web
     name: kyzen-web
     runtime: static
-    region: singapore
     plan: free
     buildCommand: |
       npm ci &&
