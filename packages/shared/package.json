@@ -2,9 +2,10 @@
   "name": "@kyzen/shared",
   "version": "1.0.0",
   "private": true,
-  "main": "./src/index.ts",
+  "main": "./src/index.js",
   "types": "./src/index.ts",
   "scripts": {
+    "build": "tsc --outDir ./src --declaration --module commonjs --target ES2022 --esModuleInterop --skipLibCheck src/index.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

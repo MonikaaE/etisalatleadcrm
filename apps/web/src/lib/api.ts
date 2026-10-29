@@ -1,8 +1,15 @@
 import axios from 'axios';
 
+// In production, VITE_API_URL points to the deployed API (e.g. https://kyzen-api.onrender.com)
+// In dev, it falls back to relative path which goes through Vite's proxy
+const API_BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/v1`
+  : '/api/v1';
+
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
@@ -20,7 +27,7 @@ api.interceptors.response.use(
       const refreshToken = localStorage.getItem('refreshToken');
       if (refreshToken) {
         try {
-          const { data } = await axios.post('/api/v1/auth/refresh', { refreshToken });
+          const { data } = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken });
           const { accessToken, refreshToken: newRefresh } = data.data;
           localStorage.setItem('accessToken', accessToken);
           localStorage.setItem('refreshToken', newRefresh);
