@@ -87,7 +87,6 @@ services:
   - type: web
     name: kyzen-web
     runtime: static
-    plan: free
     buildCommand: |
       npm ci &&
       npm run build --workspace=packages/shared &&
